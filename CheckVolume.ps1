@@ -9,7 +9,7 @@
     Each test you create in Healthceck.io have an ID
     On success, a signal will be sendt like this:     https://hc-ping.com/<CheckID>
     On error a fail signal will be sendt with the same ID
-
+    
     .LINK
     http://www.github.com/akvarius
 
@@ -17,14 +17,23 @@
 
 Param (
     [String]$CheckID,
-    [String]$Settingspath
+    [String]$Settingspath,
+
+    # PctMin specifies minimum % free space for small and medium volumes (< 2 TB)
+    # (For larger volumes, threshold is 1GB)
+    $PctMin = 7
 )
 
-
 $RemainingMinimum = 1GB
-$PCTMinimum = 4
+
 $FoundProblem = $false
 $ErrMsg = @()
+
+#$RatioMin = 0.07
+#$RatioMin = 0.1
+$RatioMin = $PctMin / 100
+
+
 
 Function Invoke-BalloonTip {
     <#
@@ -126,7 +135,6 @@ Function Invoke-BalloonTip {
 
 }
 
-
 function ConvertDoubleToBytes {
     # Inspired by https://stackoverflow.com/users/10179421/jasn-hr and the solution in https://stackoverflow.com/questions/37154375/display-disk-size-and-freespace-in-gb
     # Added left padding
@@ -145,11 +153,6 @@ function ConvertDoubleToBytes {
     })"
 }
 
-
-# $GV = Get-Volume 
-#$GV = $x
-
-#$VolumeList = $GV | Where-Object {$_.DriveType -like 'Fixed'} | ForEach-Object {
 $VolumeList = Get-Volume | Where-Object {$_.DriveType -like 'Fixed'} | ForEach-Object {
     If ($_.Size -gt 0) {
         $FreeRatio = $_.SizeRemaining / $_.Size
@@ -164,18 +167,15 @@ $VolumeList = Get-Volume | Where-Object {$_.DriveType -like 'Fixed'} | ForEach-O
         $NewTxt = @("Volume health problem:", "Drive $($_.DriveLetter)".PadLeft(3), "Label '$($_.FileSystemLabel)'".PadLeft(5), ':', $_.Healthstatus) -join ' '
         $ErrMsg += $NewTxt
         Write-host $NewTxt
-
-        # Write-host  "Volume health problem"
-        # $ErrMsg = "Volume health problem"
     }
     
     # Size thresholds...
     If ($CheckFree -or $true) {
         switch ($_.Size) {
             {$_ -lt 100GB} {
-                $COnd = {$_.FreeRatio  -lt 0.07}}    # Small      x < 100GB
+                $COnd = {$_.FreeRatio  -lt $RatioMin}}    # Small      x < 100GB ratioMin 0.07
             {$_ -ge 100GB -and $_ -lt 2TB}   {
-                $COnd = {$_.SizeRemaining -lt 10GB -or $_.FreeRatio  -lt 0.07}}  # Medium     100GB < x < 2TB
+                $COnd = {$_.SizeRemaining -lt 10GB -or $_.FreeRatio  -lt $RatioMin}}  # Medium     100GB < x < 2TB, ratioMin 0.07
             {$_ -ge 2TB   -and $_ -lt 10TB}  {
                 $COnd = {$_.SizeRemaining -lt 100GB}}  # Big        2TB   < x < 10TB
             {$_ -ge 10TB  -and $_ -ge 10TB}  {
@@ -185,9 +185,9 @@ $VolumeList = Get-Volume | Where-Object {$_.DriveType -like 'Fixed'} | ForEach-O
         If ($_ | Where-Object $Cond ) {
             $FoundProblem = $true
 
-            $NewTxt = @("Free space below limit:", "$($_.DriveLetter)".PadLeft(3), "$($_.FileSystemLabel)".PadLeft(5), (ConvertDoubleToBytes($_.Size)), (ConvertDoubleToBytes($_.SizeRemaining)), "$($_.FreeRatio)".PadLeft(5)) -join ' '
+            $NewTxt = @("Free space below limit:", "$($_.DriveLetter)".PadLeft(3), "$($_.FileSystemLabel)".PadLeft(5), (ConvertDoubleToBytes($_.Size)), (ConvertDoubleToBytes($_.SizeRemaining)), "$("{0,7:p}" -F  ($_.FreeRatio))") -join ' '
             $ErrMsg += $NewTxt
-            Write-host $NewTxt
+            #Write-host $NewTxt
             # Write-host  "Free space below limit:", "$($_.DriveLetter)".PadLeft(3), "$($_.FileSystemLabel)".PadLeft(5), (ConvertDoubleToBytes($_.Size)), (ConvertDoubleToBytes($_.SizeRemaining)), "$($_.FreeRatio)".PadLeft(5)
         }
     }
@@ -198,10 +198,10 @@ $VolumeList = Get-Volume | Where-Object {$_.DriveType -like 'Fixed'} | ForEach-O
 $ShortList = $VolumeList  | Format-Table @{L="Drive";e={$_.DriveLetter}},
     @{L="Label";e={$_.FileSystemLabel}},
     @{L="Health";e={$_.HealthStatus}},
-    @{n="Size";e={ConvertDoubleToBytes($_.Size)}},
-    @{L="Free";e={ConvertDoubleToBytes($_.SizeRemaining)}},
-    @{L="FreepCT";e={"{0,7:p}" -F  ($_.FreeRatio)}},
-    @{L="Path";e={$_.Path}}
+    @{n="Size"; e={ConvertDoubleToBytes($_.Size)}},
+    @{L="Free"; e={ConvertDoubleToBytes($_.SizeRemaining)}},
+    @{L="%Free";e={"{0,7:p}" -F  ($_.FreeRatio)}},
+    @{L="Path"; e={$_.Path}}
 
 
 $ErrMsg | out-host
@@ -223,6 +223,4 @@ If ($FoundProblem) {
         $ShortList | Out-String| Invoke-RestMethod "https://hc-ping.com/$CheckID" -headers @{'User-Agent'="$($ENV:Computername) Disk Volumes OK"} -method POST
     }
 }
-
-
 
