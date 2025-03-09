@@ -135,8 +135,9 @@ Function Invoke-BalloonTip {
 
 }
 
-function ConvertDoubleToBytes {
-    # Inspired by https://stackoverflow.com/users/10179421/jasn-hr and the solution in https://stackoverflow.com/questions/37154375/display-disk-size-and-freespace-in-gb
+function ConvertDoubleToBytesXX {
+    # Inspired by https://stackoverflow.com/users/10179421/jasn-hr
+    # and the solution in https://stackoverflow.com/questions/37154375/display-disk-size-and-freespace-in-gb
     # Added left padding
     Param (
         [double]$srcDouble
@@ -152,6 +153,109 @@ function ConvertDoubleToBytes {
         5 { " PB" }
     })"
 }
+
+
+function ConvertDoubleToBytes2 {
+    # Inspired by https://stackoverflow.com/users/10179421/jasn-hr
+    #  and the solution in 
+    # https://stackoverflow.com/questions/37154375/display-disk-size-and-freespace-in-gb
+    # Added left padding
+    Param (
+        [double]$srcDouble
+    )
+
+    If ($srcDouble -eq 0) {
+        return "0 Bytes"
+    }
+
+    $Log        = [Math]::Log($srcDouble,1024)
+    $FloorLog   = [Math]::Floor([Math]::Log($srcDouble,1024))
+    $Pow        = [math]::pow(1024,([Math]::Floor([Math]::Log($srcDouble,1024))))
+    $SrcOverPow = $srcDouble/([math]::pow(1024,([Math]::Floor([Math]::Log($srcDouble,1024)))))
+    $Ceiling    = [Math]::Ceiling($srcDouble/([math]::pow(1024,([Math]::Floor([Math]::Log($srcDouble,1024))))))
+
+    $Test2 = [math]::Round($srcDouble/1GB,2)
+   
+    $txtSize = [Math]::Ceiling($srcDouble/([math]::pow(1024,([Math]::Floor([Math]::Log($srcDouble,1024)))))).ToString().PadLeft(3)
+    $res = $txtSize + "$(Switch ([Math]::Floor([Math]::Log($srcDouble,1024))) {
+        0 { " Bytes" }
+        1 { " KB" }
+        2 { " MB" }
+        3 { " GB" }
+        4 { " TB" }
+        5 { " PB" }
+    })"
+    
+    # https://stackoverflow.com/questions/37154375/display-disk-size-and-freespace-in-gb
+    # https://stackoverflow.com/users/702944/frode-f
+    $TruncLog = [math]::truncate([math]::log($srcDouble,1024))
+    $Res2 = switch ([math]::truncate([math]::log($srcDouble,1024))) {
+        0 {"$srcDouble Bytes"}
+        1 {"{0:n2} KB" -f ($srcDouble / 1KB)}
+        2 {"{0:n2} MB" -f ($srcDouble / 1MB)}
+        3 {"{0:n2} GB" -f ($srcDouble / 1GB)}
+        4 {"{0:n2} TB" -f ($srcDouble / 1TB)}
+        Default {"{0:n2} PB" -f ($srcDouble / 1pb)}
+    }
+
+    $Res2.PadLeft(5)
+    #write-host $srcDouble, $Log,$FloorLog ,$Pow,$SrcOverPow,$Ceiling, $res, $Test2 , $TruncLog , $Res2 
+
+    # $res
+
+}
+
+function ConvertDoubleToBytes {
+    # Inspired by https://stackoverflow.com/users/10179421/jasn-hr
+    #  and the solution in 
+    # https://stackoverflow.com/questions/37154375/display-disk-size-and-freespace-in-gb
+    # Added left padding
+    Param (
+        [double]$srcDouble
+    )
+
+    If ($srcDouble -eq 0) {
+        return "0 Bytes"
+    }
+    
+    # https://stackoverflow.com/questions/37154375/display-disk-size-and-freespace-in-gb
+    # https://stackoverflow.com/users/702944/frode-f
+#    $TruncLog = [math]::truncate([math]::log($srcDouble,1024))
+    $Res2 = switch ([math]::truncate([math]::log($srcDouble,1024))) {
+        0 {"$srcDouble Bytes"}
+        1 {"{0:n2} KB" -f ($srcDouble / 1KB)}
+        2 {"{0:n2} MB" -f ($srcDouble / 1MB)}
+        3 {"{0:n2} GB" -f ($srcDouble / 1GB)}
+        4 {"{0:n2} TB" -f ($srcDouble / 1TB)}
+        Default {"{0:n2} PB" -f ($srcDouble / 1pb)}
+    }
+
+    $Res2.PadLeft(11)
+
+    #write-host $srcDouble, $Log,$FloorLog ,$Pow,$SrcOverPow,$Ceiling, $res, $Test2 , $TruncLog , $Res2 
+    #write-host $srcDouble, $Res2 
+
+    # $res
+
+}
+
+
+<#If ($Host.name -notlike "consolehost") {
+
+    $SizeTest = 1238155390976
+    # vises som 2 TB.... 
+
+    0..30 | ForEach-Object { 
+        ConvertDoubleToBytes3  ($_ * 1024 * 73400)
+    }
+
+    ConvertDoubleToBytes3  $SizeTest 
+
+
+    exit
+}#>
+
+
 
 $VolumeList = Get-Volume | Where-Object {$_.DriveType -like 'Fixed'} | ForEach-Object {
     If ($_.Size -gt 0) {
